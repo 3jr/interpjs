@@ -1,4 +1,3 @@
-//
 // p Prefix: function that are parsers
 // Im Postfix: Implementation
 //
@@ -10,10 +9,15 @@
 
 'use strict';
 
+function log(msg) {
+    //console.log(msg);
+}
+
 function not(b) {
     if (b === true) {
         return false;
-    } else if (b === false) {
+    }
+    if (b === false) {
         return true;
     } // else undefined
 }
@@ -42,9 +46,7 @@ function parse(p, s, i) {
     }
     var r = p.p(s, i);
     if (r.t === "Succ" && p.f !== undefined) {
-        r.ast = p.f(r.ast);
-    } else {
-        r.ast = r.res;
+        r.res = p.f(r.res);
     }
     return r;
 }
@@ -77,7 +79,7 @@ function pIdentIm(s, i) {
         id = id + s[i];
         i = i + 1;
     }
-    console.log(i + ': id "' + id + '"');
+    log(i + ': id "' + id + '"');
     return pSucc(i, id);
 }
 
@@ -121,10 +123,10 @@ function pStrIm(s, i) {
         j = j + 1;
     }
     if (j === str.length) {
-        console.log(iold + ': found "' + str + '"');
+        log(iold + ': found "' + str + '"');
         return pSucc(i, str);
     } else {
-        console.log(iold + ': expected "' + str + '"');
+        log(iold + ': expected "' + str + '"');
         return pFail(iold, 'expected "' + str + '"');
     }
 }
@@ -145,10 +147,10 @@ function pKeywordIm(s, i) {
     }
     if (j === keyword.length &&
             not(isLetterChar(s[i])) && not(isNumChar(s[i]))) {
-        console.log(iold + ': found "' + keyword + '"');
+        log(iold + ': found "' + keyword + '"');
         return pSucc(i, keyword);
     } else {
-        console.log(iold + ': expected "' + keyword + '"');
+        log(iold + ': expected "' + keyword + '"');
         return pFail(iold, 'expected "' + keyword + '"');
     }
 }
@@ -160,7 +162,7 @@ function pKeyword(keyword) {
     };
 }
 
-function pQuatedStringIm(s, i) {
+function pQuotedIm(s, i) {
     var q = s[i];
     if (q !== '"' && q !== "'") {
         return pFail(i, "expected quoat");
@@ -197,20 +199,13 @@ function pQuatedStringIm(s, i) {
     }
     str = str + s[i];
     i = i + 1;
-    console.log(i + ': strLit "' + str + '"');
+    log(i + ': strLit "' + str + '"');
     return pSucc(i, str);
 }
 
-var pQuatedString = {
-    p: pQuatedStringIm
+var pQuoted = {
+    p: pQuotedIm
 };
-
-function pQuoatedString(f) {
-    return {
-        p: pQuatedStringIm,
-        f: f
-    };
-}
 
 function pSkipSpaceIm(s, i) {
     var ws = '';
@@ -228,7 +223,7 @@ function pSkipSpaceIm(s, i) {
                     i = i + 1;
                 }
             } else if (s[i + 1] === "*") {
-                ws = ws + s[i] + s[i + 1] + s [i + 2];
+                ws = ws + s[i] + s[i + 1] + s[i + 2];
                 i = i + 3;
 
                 while (s[i - 2] !== "*" || s[i - 1] !== "/") {
@@ -242,7 +237,7 @@ function pSkipSpaceIm(s, i) {
             break;
         }
     }
-    //console.log(i + ': ws "' + ws + '"');
+    //log(i + ': ws "' + ws + '"');
     return pSucc(i, ws);
 }
 
@@ -281,11 +276,29 @@ function pSeq(seq) {
     };
 }
 
+function pfSeq(seq, f) {
+    return {
+        p: pSeqIm,
+        seq: seq,
+        atomic: false,
+        f: f
+    };
+}
+
 function pAtomicSeq(seq) {
     return {
         p: pSeqIm,
         seq: seq,
         atomic: true
+    };
+}
+
+function pfAtomicSeq(seq, f) {
+    return {
+        p: pSeqIm,
+        seq: seq,
+        atomic: true,
+        f: f
     };
 }
 
@@ -296,7 +309,7 @@ function pAnyIm(s, i) {
     while (j < any.length) {
         r = parse(any[j], s, i);
         if (r.t === "Succ") {
-            return pSucc(r.pos, r.res);
+            return r;
         }
         if (r.pos !== i) {
             return pFail(i, "something in any got somewhere");
@@ -313,12 +326,20 @@ function pAny(any) {
     };
 }
 
+function pfAny(any, f) {
+    return {
+        p: pAnyIm,
+        any: any,
+        f: f
+    };
+}
+
 function pOptIm(s, i) {
     var pInner = this.pInner;
     var r = parse(pInner, s, i);
     if (r.t === "Fail") {
         if (r.pos === i) {
-            return pSucc(i, '');
+            return pSucc(i, null);
         } else {
             return pFail(i, 'partial match in opt');
         }
@@ -330,6 +351,14 @@ function pOpt(pInner) {
     return {
         p: pOptIm,
         pInner: pInner
+    };
+}
+
+function pfOpt(pInner, f) {
+    return {
+        p: pOptIm,
+        pInner: pInner,
+        f: f
     };
 }
 
@@ -355,6 +384,14 @@ function pMany(pInner) {
     return {
         p: pManyIm,
         pInner: pInner
+    };
+}
+
+function pfMany(pInner, f) {
+    return {
+        p: pManyIm,
+        pInner: pInner,
+        f: f
     };
 }
 
@@ -394,15 +431,53 @@ function pSepBy(pInner, pSep) {
     };
 }
 
+function pfSepBy(pInner, pSep, f) {
+    return {
+        p: pSepByIm,
+        pInner: pInner,
+        pSep: pSep,
+        f: f
+    };
+}
+
+function fN0(ast) {
+    return ast[0];
+}
+
+function fN1(ast) {
+    return ast[1];
+}
+
+function fN2(ast) {
+    return ast[2];
+}
+
+function fEven(ast) {
+    var r = [];
+    var i = 0;
+    while (i < ast.length) {
+        r.push(ast[i]);
+        i = i + 2;
+    }
+    return r;
+}
+
 // start of custome stuff
 
 function lexme(str) {
-    return pSeq([pStr(str), pSkipSpace]);
+    return pfSeq([pStr(str), pSkipSpace], fN0);
 }
 function lexmeKeyword(str) {
-    return pSeq([pKeyword(str), pSkipSpace]);
+    return pfSeq([pKeyword(str), pSkipSpace], fN0);
 }
-var pId = pSeq([pIdent, pSkipSpace]);
+
+function fId(ast) {
+    return {
+        t: "id",
+        idName: ast[0]
+    };
+}
+var pId = pfSeq([pIdent, pSkipSpace], fId);
 
 // lexmes:
 var lFunc = lexmeKeyword("function");
@@ -450,16 +525,16 @@ var lLBracket = lexme("[");
 var lRBracket = lexme("]");
 
 function pComma(pInner) {
-    return pSepBy(pInner, lComma);
+    return pSepBy(pInner, lComma, fEven);
 }
 
 function pParenIm(s, i) {
     var pInner = this.pInner;
-    return parse(pSeq([
+    return parse(pfSeq([
         lLParen,
         pInner,
         lRParen
-    ]), s, i);
+    ], fN1), s, i);
 }
 
 function pParen(pInner) {
@@ -469,13 +544,21 @@ function pParen(pInner) {
     };
 }
 
+function pfParen(pInner, f) {
+    return {
+        p: pParenIm,
+        pInner: pInner,
+        f: f
+    };
+}
+
 function pBracesIm(s, i) {
     var pInner = this.pInner;
-    return parse(pSeq([
+    return parse(pfSeq([
         lLBrace,
         pInner,
         lRBrace
-    ]), s, i);
+    ], fN1), s, i);
 }
 
 function pBraces(pInner) {
@@ -485,19 +568,35 @@ function pBraces(pInner) {
     };
 }
 
+function pfBraces(pInner, f) {
+    return {
+        p: pBracesIm,
+        pInner: pInner,
+        f: f
+    };
+}
+
 function pBracketsIm(s, i) {
     var pInner = this.pInner;
-    return parse(pSeq([
+    return parse(pfSeq([
         lLBracket,
         pInner,
         lRBracket
-    ]), s, i);
+    ], fN1), s, i);
 }
 
 function pBrackets(pInner) {
     return {
         p: pBracketsIm,
         pInner: pInner
+    };
+}
+
+function pfBrackets(pInner, f) {
+    return {
+        p: pBracketsIm,
+        pInner: pInner,
+        f: f
     };
 }
 
@@ -515,39 +614,111 @@ var pBlock = {
     p: pBlockIndirection
 };
 
-var pVar = pSeq([
+function fVar(ast) {
+    return {
+        t: "var decl",
+        varId: ast[1].idName,
+        expr: ast[2]
+    };
+}
+
+var pVar = pfSeq([
     lVar,
     pId,
-    pOpt(pSeq([lEqualSign, pExpr])),
+    pOpt(pfSeq([lEqualSign, pExpr], fN1)),
     lSemi
-]);
+], fVar);
 
-var pIf = pSeq([
+function fIf(ast) {
+    return {
+        t: "if stmt",
+        cond: ast[1],
+        block: ast[2],
+        elseifBranches: ast[3],
+        elseBlock: ast[4]
+    };
+}
+
+function fElseIf(ast) {
+    return {
+        t: "else if stmt",
+        cond: ast[1],
+        block: ast[2]
+    };
+}
+
+var pIf = pfSeq([
     lIf,
     pParen(pExpr),
     pBlock,
-    pMany(pSeq([
+    pMany(pfSeq([
         pAtomicSeq([lElse, lIf]),
         pParen(pExpr),
         pBlock
-    ])),
-    pOpt(pSeq([
+    ], fElseIf)),
+    pfOpt(pfSeq([
         lElse,
         pBlock
-    ]))
-]);
+    ], fN1))
+], fIf);
 
-var pWhile = pSeq([lWhile, pParen(pExpr), pBlock]);
+function fWhile(ast) {
+    return {
+        t: "if stmt",
+        cond: ast[1],
+        block: ast[2]
+    };
+}
 
-var pReturn = pSeq([lReturn, pOpt(pExpr), lSemi]);
-var pBreak = pSeq([lBreak, lSemi]);
-var pContinue = pSeq([lContinue, lSemi]);
+var pWhile = pfSeq([lWhile, pParen(pExpr), pBlock], fWhile);
 
-var pAssignExpr = pSeq([
+function fReturn(ast) {
+    return {
+        t: "return stmt",
+        expr: ast[1]
+    };
+}
+
+var pReturn = pfSeq([lReturn, pOpt(pExpr), lSemi], fReturn);
+
+function fBreak(/*ast*/) {
+    return {t: "break stmt"};
+}
+
+var pBreak = pfSeq([lBreak, lSemi], fBreak);
+
+function fContinue(/*ast*/) {
+    return {t: "continue stmt"};
+}
+
+var pContinue = pfSeq([lContinue, lSemi], fBreak);
+
+function fAssignExprStmt(ast) {
+    if (ast[1] === null) {
+        return {
+            t: "expr stmt",
+            expr: ast[0]
+        };
+    } else {
+        if (ast[0].t !== "id") {
+            return {
+                t: "error",
+                msg: "expression on left hand side of assignment"
+            };
+        }
+        return {
+            t: "assign stmt",
+            variable: ast[0].idName,
+            expr: ast[1]
+        };
+    }
+}
+
+var pAssignExprStmt = pfSeq([
     pExpr,
-    pOpt(pSeq([lEqualSign, pExpr])),
+    pOpt(pfSeq([lEqualSign, pExpr], fN1)),
     lSemi
-]);
+], fAssignExprStmt);
 
 var pStmt = pAny([
     pVar,
@@ -556,17 +727,32 @@ var pStmt = pAny([
     pReturn,
     pBreak,
     pContinue,
-    pAssignExpr
+    pAssignExprStmt
 ]);
 
 var pBlockRef = pBraces(pMany(pStmt));
 
-var pFunction = pSeq([
+function fFunction(ast) {
+    var paramNames = [];
+    var i = 0;
+    while (i < ast[2].length) {
+        paramNames.push(ast[2][i].idName);
+        i = i + 1;
+    }
+    return {
+        t: "func decl",
+        funcName: ast[1].idName,
+        params: paramNames,
+        block: ast[3]
+    };
+}
+
+var pFunction = pfSeq([
     lFunc,
     pId,
     pParen(pComma(pId)),
     pBlock
-]);
+], fFunction);
 
 var pItem = pAny([
     pFunction,
@@ -575,17 +761,71 @@ var pItem = pAny([
     pSeq([pStr("main();"), pSkipSpace])
 ]);
 
-var pNumberLit = pSeq([pFloat, pSkipSpace]);
-var pStringLit = pSeq([pQuatedString, pSkipSpace]);
-var pBoolLit = pAny([lTrue, lFalse]);
+function fNumberLit(ast) {
+    return {
+        t: "number lit",
+        value: ast[0]
+    };
+}
+
+var pNumberLit = pfSeq([pFloat, pSkipSpace], fNumberLit);
+
+function fStringLit(ast) {
+    return {
+        t: "string lit",
+        value: ast[0]
+    };
+}
+
+var pStringLit = pfSeq([pQuoted, pSkipSpace], fStringLit);
+
+function fBoolLit(ast) {
+    if (ast === "true") {
+        return {
+            t: "bool lit",
+            value: true
+        };
+    } else {
+        return {
+            t: "bool lit",
+            value: false
+        };
+    }
+}
+
+var pBoolLit = pfAny([lTrue, lFalse], fBoolLit);
+
+function fArrayLit(ast) {
+    return {
+        t: "array lit",
+        value: ast
+    };
+}
+
 var pArrayLit = pBrackets(pComma(pExpr));
-var pObjLit = pBraces(pComma(
-    pSeq([
+
+function fObjLit(ast) {
+    return {
+        t: "obj lit",
+        value: ast
+    };
+}
+
+function fObjLitEntry(ast) {
+    return {
+        t: "obj lit entry",
+        idx: ast[0],
+        expr: ast[2]
+    };
+}
+
+var pObjLit = pfBraces(pComma(
+    pfSeq([
         pAny([pStringLit, pId]),
         lColon,
         pExpr
-    ])
-));
+    ], fObjLitEntry)
+), fObjLit);
 
 
 var binOps = [
@@ -607,28 +847,80 @@ var pExpr1 = pAny([
     pId
 ]);
 
-var pExpr2 = pSeq([
+function fFuncCall(ast) {
+    return {
+        t: "func call",
+        funcParams: ast
+    };
+}
+
+function fArrayIndex(ast) {
+    return {
+        t: "array index",
+        indexExpr: ast
+    };
+}
+
+function fDotted(ast) {
+    return {
+        t: "dotted",
+        dotName: ast[1].idName
+    };
+}
+
+function fExpr2(ast) {
+    if (ast[1].length === 0) {
+        return ast[0];
+    } else {
+        return {
+            t: "expr2",
+            first: ast[0],
+            additions: ast[1]
+        };
+    }
+}
+
+var pExpr2 = pfSeq([
     pExpr1,
     pMany(
         pAny([
-            pSeq([lDot, pId]),
-            pParen(pComma(pExpr)),
-            pBrackets(pExpr)
+            pfSeq([lDot, pId], fDotted),
+            pfParen(pComma(pExpr), fFuncCall),
+            pfBrackets(pExpr, fArrayIndex)
         ])
     )
-]);
+], fExpr2);
+
+function fBinOp(ast) {
+    if (ast[1].length === 0) {
+        return ast[0];
+    }
+    var operants = [ast[0]];
+    var operators = [];
+    var i = 0;
+    while (i < ast[1].length) {
+        operators.push(ast[1][i][0]);
+        operants.push(ast[1][i][1]);
+        i = i + 1;
+    }
+    return {
+        t: "bin op expr",
+        operants: operants,
+        operators: operators
+    };
+}
 
 function generateExpr() {
     var i = 0;
     var p = pExpr2;
     while (i < binOps.length) {
-        p = pSeq([
+        p = pfSeq([
             p,
             pMany(pSeq([
                 pAny(binOps[i]),
                 p
             ]))
-        ]);
+        ], fBinOp);
         i = i + 1;
     }
     return p;
@@ -636,7 +928,7 @@ function generateExpr() {
 
 var pExprRef = generateExpr();
 
-var pSrc = pSeq([pSkipSpace, pMany(pItem), pStr(String.fromCharCode(26))]);
+var pSrc = pfSeq([pSkipSpace, pMany(pItem), pStr(String.fromCharCode(26))], fN1);
 
 function tests() {
     var sws = pSkipSpace;
@@ -651,4 +943,4 @@ function tests() {
     parse(pSrc, tsrc);
 }
 
-/* vim:sts=4:sw=4:noet */
+/* vim:sts=4:sw=4 */
