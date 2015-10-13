@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+<meta content="utf-8" http-equiv="encoding">
+<html>
+<head>
+</head>
+<body id="body">
+  <h4>Code</h4>  
+  <textarea id="code" cols="40" rows="5"></textarea>
+  <br>
+  <input id="exec" type="submit">
+  <h4>Structure Tree</h4>
+  <textarea id="output" cols="40" rows="5"></textarea>
+  <script src="parser.js"></script>
+  <script>
+    var codeTT = document.getElementById("code");
+    var execB = document.getElementById("exec");
+    var outTT = document.getElementById("output");
+
+    function execClick() {
+      outTT.value = '';
+      outTT.value = JSON.stringify(parse(pSrc,codeTT.value));
+    }
+    execB.onclick = execClick;
+  </script>
+</body>
+</html>
