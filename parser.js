@@ -879,8 +879,8 @@ function fExpr2(ast) {
     } else {
         return {
             t: "expr2",
-            first: ast[0],
-            additions: ast[1]
+            innermost: ast[0],
+            rest: ast[1]
         };
     }
 }
