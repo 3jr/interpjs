@@ -19,7 +19,7 @@
 
     function execClick() {
       outTT.value = '';
-      outTT.value = JSON.stringify(parse(pSrc,codeTT.value));
+      outTT.value = JSON.stringify(parse(pSrc,codeTT.value), null, 2);
     }
     execB.onclick = execClick;
   </script>

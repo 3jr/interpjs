@@ -1,4 +1,7 @@
-// p Prefix: function that are parsers
+// p Prefix: functions that are parsers and helper functions and variables
+// f Prefix: functions that transform the result to a useful ast
+// pf Prefix: functions that are parsers and take a transform function
+// l Prefix: lexme
 // Im Postfix: Implementation
 //
 // Variable/Parameter Names explained
@@ -7,9 +10,11 @@
 // i : position in stream (names pos in Succ and Ret)
 // res : result of parsing
 
+/* jshint validthis: false */
+
 'use strict';
 
-function log(msg) {
+function pParserlog(msg) {
     //console.log(msg);
 }
 
@@ -79,7 +84,7 @@ function pIdentIm(s, i) {
         id = id + s[i];
         i = i + 1;
     }
-    log(i + ': id "' + id + '"');
+    pParserlog(i + ': id "' + id + '"');
     return pSucc(i, id);
 }
 
@@ -123,10 +128,10 @@ function pStrIm(s, i) {
         j = j + 1;
     }
     if (j === str.length) {
-        log(iold + ': found "' + str + '"');
+        pParserlog(iold + ': found "' + str + '"');
         return pSucc(i, str);
     } else {
-        log(iold + ': expected "' + str + '"');
+        pParserlog(iold + ': expected "' + str + '"');
         return pFail(iold, 'expected "' + str + '"');
     }
 }
@@ -147,10 +152,10 @@ function pKeywordIm(s, i) {
     }
     if (j === keyword.length &&
             not(isLetterChar(s[i])) && not(isNumChar(s[i]))) {
-        log(iold + ': found "' + keyword + '"');
+        pParserlog(iold + ': found "' + keyword + '"');
         return pSucc(i, keyword);
     } else {
-        log(iold + ': expected "' + keyword + '"');
+        pParserlog(iold + ': expected "' + keyword + '"');
         return pFail(iold, 'expected "' + keyword + '"');
     }
 }
@@ -199,7 +204,7 @@ function pQuotedIm(s, i) {
     }
     str = str + s[i];
     i = i + 1;
-    log(i + ': strLit "' + str + '"');
+    pParserlog(i + ': strLit "' + str + '"');
     return pSucc(i, str);
 }
 
@@ -237,7 +242,7 @@ function pSkipSpaceIm(s, i) {
             break;
         }
     }
-    //log(i + ': ws "' + ws + '"');
+    //pParserlog(i + ': ws "' + ws + '"');
     return pSucc(i, ws);
 }
 
@@ -691,7 +696,7 @@ function fContinue(/*ast*/) {
     return {t: "continue stmt"};
 }
 
-var pContinue = pfSeq([lContinue, lSemi], fBreak);
+var pContinue = pfSeq([lContinue, lSemi], fContinue);
 
 function fAssignExprStmt(ast) {
     if (ast[1] === null) {
@@ -802,7 +807,7 @@ function fArrayLit(ast) {
     };
 }
 
-var pArrayLit = pBrackets(pComma(pExpr));
+var pArrayLit = pfBrackets(pComma(pExpr), fArrayLit);
 
 function fObjLit(ast) {
     return {
@@ -828,7 +833,7 @@ var pObjLit = pfBraces(pComma(
 ), fObjLit);
 
 
-var binOps = [
+var pBinOps = [
     [lStar, lFSlash, lPercent],
     [lPlus, lMinus],
     [lEq3, lNEq3],
@@ -913,11 +918,11 @@ function fBinOp(ast) {
 function generateExpr() {
     var i = 0;
     var p = pExpr2;
-    while (i < binOps.length) {
+    while (i < pBinOps.length) {
         p = pfSeq([
             p,
             pMany(pSeq([
-                pAny(binOps[i]),
+                pAny(pBinOps[i]),
                 p
             ]))
         ], fBinOp);
@@ -930,7 +935,7 @@ var pExprRef = generateExpr();
 
 var pSrc = pfSeq([pSkipSpace, pMany(pItem), pStr(String.fromCharCode(26))], fN1);
 
-function tests() {
+function pTests() {
     var sws = pSkipSpace;
     parse(pMany(pAny([pStr('1'), sws])), '111');
     parse(pMany(pAny([
@@ -943,4 +948,4 @@ function tests() {
     parse(pSrc, tsrc);
 }
 
-/* vim:sts=4:sw=4 */
+// vim:sts=4:sw=4
