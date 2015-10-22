@@ -669,7 +669,7 @@ var pIf = pfSeq([
 
 function fWhile(ast) {
     return {
-        t: "if stmt",
+        t: "while stmt",
         cond: ast[1],
         block: ast[2]
     };
@@ -818,12 +818,12 @@ function fBoolLit(ast) {
     if (ast === "true") {
         return {
             t: "bool lit",
-            value: true
+            val: true
         };
     } else {
         return {
             t: "bool lit",
-            value: false
+            val: false
         };
     }
 }
@@ -833,7 +833,7 @@ var pBoolLit = pfAny([lTrue, lFalse], fBoolLit);
 function fArrayLit(ast) {
     return {
         t: "array lit",
-        value: ast
+        val: ast
     };
 }
 
@@ -842,7 +842,7 @@ var pArrayLit = pfBrackets(pComma(pExpr), fArrayLit);
 function fObjLit(ast) {
     return {
         t: "obj lit",
-        value: ast
+        val: ast
     };
 }
 
