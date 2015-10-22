@@ -766,19 +766,49 @@ var pItem = pAny([
     pSeq([pStr("main();"), pSkipSpace])
 ]);
 
+function pNumStrToNum(str) {
+    var nullNum = "0".charCodeAt(0);
+    var i = 0;
+    var res = 0;
+    while (i < str.length && str[i] !== ".") {
+        var c = str.charCodeAt(i) - nullNum;
+        res = res * 10;
+        res = res + c;
+        i = i + 1;
+    }
+    if (str[i] === ".") {
+        i = i + 1;
+        var factor = 1 / 10;
+        while (i < str.length) {
+            var c = str.charCodeAt(i) - nullNum;
+            res = res + c * factor;
+            factor = factor / 10;
+            i = i + 1;
+        }
+    }
+    return res;
+}
+
 function fNumberLit(ast) {
     return {
-        t: "number lit",
-        value: ast[0]
+        t: "num lit",
+        val: pNumStrToNum(ast[0])
     };
 }
 
 var pNumberLit = pfSeq([pFloat, pSkipSpace], fNumberLit);
 
 function fStringLit(ast) {
+    // var s = ast[0].slice(1,-1);
+    var s = "";
+    var i = 1;
+    while (i < ast[0].length - 1) {
+        s = s + ast[0][i];
+        i = i + 1;
+    }
     return {
-        t: "string lit",
-        value: ast[0]
+        t: "str lit",
+        val: s
     };
 }
 
