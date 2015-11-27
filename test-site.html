@@ -1,27 +1,42 @@
 <!DOCTYPE html>
-<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
-<meta content="utf-8" http-equiv="encoding">
 <html>
 <head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
 </head>
 <body id="body">
   <h4>Code</h4>  
-  <textarea id="code" cols="40" rows="5"></textarea>
+  <textarea id="code" cols="120" rows="40"></textarea>
   <br>
-  <input id="exec" type="submit">
+  <input id="addToCtx" type="submit" value="addToCtx">
+  <input id="newCtx" type="submit" value="newCtx">
+  <input id="parse" type="submit">
   <h4>Structure Tree</h4>
-  <textarea id="output" cols="40" rows="5"></textarea>
+  <textarea id="output" cols="120" rows="40"></textarea>
   <script src="parser.js"></script>
+  <script src="interp.js"></script>
   <script>
     var codeTT = document.getElementById("code");
-    var execB = document.getElementById("exec");
+    var parseB = document.getElementById("parse");
+    var newCtxB = document.getElementById("newCtx");
+    var addToCtxB = document.getElementById("addToCtx");
     var outTT = document.getElementById("output");
 
-    function execClick() {
+    var ctx = iCreateCtx();
+
+    parseB.onclick = function() {
       outTT.value = '';
-      outTT.value = JSON.stringify(parse(pSrc,codeTT.value), null, 2);
+      outTT.value = JSON.stringify(pParse(pSrc,codeTT.value), null, 2);
     }
-    execB.onclick = execClick;
+    newCtxB.onclick = function() {
+        ctx = iCreateCtx();
+    }
+    addToCtxB.onclick = function() {
+        var p = pParse(pSrc,codeTT.value);
+        if (p.t === "error") { alert(JSON.stringify(p,null,2)); }
+        iEvalSrc(ctx, p.res);
+    }
+
   </script>
 </body>
 </html>

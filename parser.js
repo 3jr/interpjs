@@ -10,8 +10,6 @@
 // i : position in stream (names pos in Succ and Ret)
 // res : result of parsing
 
-/* jshint validthis: false */
-
 'use strict';
 
 function pParserlog(msg) {
@@ -44,14 +42,16 @@ function isWhitespaceChar(str) {
             c === 13;// \r
 }
 
-function parse(p, s, i) {
-    if (i === undefined || i === null) {
-        i = 0;
-        s = s + String.fromCharCode(26);
-    }
+function pAParse(p, s, i) {
     var r = p.p(s, i);
-    if (r.t === "Succ" && p.f !== undefined) {
-        r.res = p.f(r.res);
+    if (r.t === "Succ" && p.hasOwnProperty("f")) {
+        // TODO fix complex left side
+        //r.res = p.f(r.res);
+        return {
+            t: "Succ",
+            pos: r.pos,
+            res: p.f(r.res)
+        };
     }
     return r;
 }
@@ -80,11 +80,11 @@ function pIdentIm(s, i) {
     } else {
         return pFail(i, "identifier must start with letter");
     }
-    while (isLetterChar(s[i]) || isNumChar(s[i])) {
+    while (isLetterChar(s[i]) || isNumChar(s[i]) || s[i] === '_') {
         id = id + s[i];
         i = i + 1;
     }
-    pParserlog(i + ': id "' + id + '"');
+    //pParserlog(i + ': id "' + id + '"');
     return pSucc(i, id);
 }
 
@@ -119,6 +119,15 @@ var pFloat = {
     p: pFloatIm
 };
 
+function pPrintDebugInfo(found, iold, i, str, s) {
+    if (found) {
+        //pParserlog(iold + ': found "' + str + '"');
+        //pParserlog(i + ': next 10: "' + s.substring(i, i+10) + '"');
+    } else {
+        //pParserlog(iold + ': expected "' + str + '"');
+    }
+}
+
 function pStrIm(s, i) {
     var str = this.str;
     var iold = i;
@@ -128,10 +137,10 @@ function pStrIm(s, i) {
         j = j + 1;
     }
     if (j === str.length) {
-        pParserlog(iold + ': found "' + str + '"');
+        pPrintDebugInfo(true, iold, i, str, s);
         return pSucc(i, str);
     } else {
-        pParserlog(iold + ': expected "' + str + '"');
+        pPrintDebugInfo(false, iold, i, str, s);
         return pFail(iold, 'expected "' + str + '"');
     }
 }
@@ -152,10 +161,10 @@ function pKeywordIm(s, i) {
     }
     if (j === keyword.length &&
             not(isLetterChar(s[i])) && not(isNumChar(s[i]))) {
-        pParserlog(iold + ': found "' + keyword + '"');
+        pPrintDebugInfo(true, iold, i, keyword, s);
         return pSucc(i, keyword);
     } else {
-        pParserlog(iold + ': expected "' + keyword + '"');
+        pPrintDebugInfo(false, iold, i, keyword, s);
         return pFail(iold, 'expected "' + keyword + '"');
     }
 }
@@ -204,7 +213,7 @@ function pQuotedIm(s, i) {
     }
     str = str + s[i];
     i = i + 1;
-    pParserlog(i + ': strLit "' + str + '"');
+    //pParserlog(i + ': strLit "' + str + '"');
     return pSucc(i, str);
 }
 
@@ -256,9 +265,9 @@ function pSeqIm(s, i) {
     var oldi = i;
     var res = [];
     var j = 0;
-    var r;
+    var r = null;
     while (j < seq.length) {
-        r = parse(seq[j], s, i);
+        r = pAParse(seq[j], s, i);
         if (r.t === "Fail") {
             if (atomic === true) {
                 return pFail(oldi, r.msg);
@@ -310,9 +319,9 @@ function pfAtomicSeq(seq, f) {
 function pAnyIm(s, i) {
     var any = this.any;
     var j = 0;
-    var r;
+    var r = null;
     while (j < any.length) {
-        r = parse(any[j], s, i);
+        r = pAParse(any[j], s, i);
         if (r.t === "Succ") {
             return r;
         }
@@ -341,7 +350,7 @@ function pfAny(any, f) {
 
 function pOptIm(s, i) {
     var pInner = this.pInner;
-    var r = parse(pInner, s, i);
+    var r = pAParse(pInner, s, i);
     if (r.t === "Fail") {
         if (r.pos === i) {
             return pSucc(i, null);
@@ -369,10 +378,10 @@ function pfOpt(pInner, f) {
 
 function pManyIm(s, i) {
     var pInner = this.pInner;
-    var r;
+    var r = null;
     var seq = [];
     while (true) {
-        r = parse(pInner, s, i);
+        r = pAParse(pInner, s, i);
         if (r.t === "Fail") {
             if (r.pos === i) {
                 return pSucc(i, seq);
@@ -403,23 +412,23 @@ function pfMany(pInner, f) {
 function pSepByIm(s, i) {
     var pInner = this.pInner;
     var pSep = this.pSep;
-    var r;
+    var r = null;
     var seq = [];
-    r = parse(pInner, s, i);
+    r = pAParse(pInner, s, i);
     if (r.t === "Fail") {
         return pSucc(i, seq);
     }
     i = r.pos;
     while (true) {
         seq.push(r.res);
-        r = parse(pSep, s, i);
+        r = pAParse(pSep, s, i);
         if (r.t === "Succ") {
             i = r.pos;
             seq.push(r.res);
         } else {
             break;
         }
-        r = parse(pInner, s, i);
+        r = pAParse(pInner, s, i);
         if (r.t === "Fail") {
             return r;
         }
@@ -494,6 +503,10 @@ var lReturn = lexmeKeyword("return");
 var lBreak = lexmeKeyword("break");
 var lContinue = lexmeKeyword("continue");
 
+var lThis = lexmeKeyword("this");
+var lNull = lexmeKeyword("null");
+var lUndef = lexmeKeyword("undefined");
+
 var lTrue = lexmeKeyword("true");
 var lFalse = lexmeKeyword("false");
 
@@ -530,12 +543,12 @@ var lLBracket = lexme("[");
 var lRBracket = lexme("]");
 
 function pComma(pInner) {
-    return pSepBy(pInner, lComma, fEven);
+    return pfSepBy(pInner, lComma, fEven);
 }
 
 function pParenIm(s, i) {
     var pInner = this.pInner;
-    return parse(pfSeq([
+    return pAParse(pfSeq([
         lLParen,
         pInner,
         lRParen
@@ -559,7 +572,7 @@ function pfParen(pInner, f) {
 
 function pBracesIm(s, i) {
     var pInner = this.pInner;
-    return parse(pfSeq([
+    return pAParse(pfSeq([
         lLBrace,
         pInner,
         lRBrace
@@ -583,7 +596,7 @@ function pfBraces(pInner, f) {
 
 function pBracketsIm(s, i) {
     var pInner = this.pInner;
-    return parse(pfSeq([
+    return pAParse(pfSeq([
         lLBracket,
         pInner,
         lRBracket
@@ -606,14 +619,14 @@ function pfBrackets(pInner, f) {
 }
 
 function pExprIndirection(s, i) {
-    return parse(pExprRef, s, i);
+    return pAParse(pExprRef, s, i);
 }
 var pExpr = {
     p: pExprIndirection
 };
 
 function pBlockIndirection(s, i) {
-    return parse(pBlockRef, s, i);
+    return pAParse(pBlockRef, s, i);
 }
 var pBlock = {
     p: pBlockIndirection
@@ -621,7 +634,7 @@ var pBlock = {
 
 function fVar(ast) {
     return {
-        t: "var decl",
+        t: "var decl stmt",
         varId: ast[1].idName,
         expr: ast[2]
     };
@@ -630,7 +643,7 @@ function fVar(ast) {
 var pVar = pfSeq([
     lVar,
     pId,
-    pOpt(pfSeq([lEqualSign, pExpr], fN1)),
+    pfSeq([lEqualSign, pExpr], fN1),
     lSemi
 ], fVar);
 
@@ -661,7 +674,7 @@ var pIf = pfSeq([
         pParen(pExpr),
         pBlock
     ], fElseIf)),
-    pfOpt(pfSeq([
+    pOpt(pfSeq([
         lElse,
         pBlock
     ], fN1))
@@ -686,13 +699,13 @@ function fReturn(ast) {
 
 var pReturn = pfSeq([lReturn, pOpt(pExpr), lSemi], fReturn);
 
-function fBreak(/*ast*/) {
+function fBreak(ast) {
     return {t: "break stmt"};
 }
 
 var pBreak = pfSeq([lBreak, lSemi], fBreak);
 
-function fContinue(/*ast*/) {
+function fContinue(ast) {
     return {t: "continue stmt"};
 }
 
@@ -705,10 +718,11 @@ function fAssignExprStmt(ast) {
             expr: ast[0]
         };
     } else {
-        if (ast[0].t !== "id") {
+        if (ast[0].t !== "id" && ast[0].t !== "expr2") {
+            // TODO 'func call is actually not allowed'
             return {
                 t: "error",
-                msg: "expression on left hand side of assignment"
+                msg: "too complex expression on left hand side of assignment"
             };
         }
         return {
@@ -761,9 +775,7 @@ var pFunction = pfSeq([
 
 var pItem = pAny([
     pFunction,
-    pVar,
-    pSeq([pStr("'use strict';"), pSkipSpace]),
-    pSeq([pStr("main();"), pSkipSpace])
+    pVar
 ]);
 
 function pNumStrToNum(str) {
@@ -814,6 +826,31 @@ function fStringLit(ast) {
 
 var pStringLit = pfSeq([pQuoted, pSkipSpace], fStringLit);
 
+function fThis(ast) {
+    return {
+        t: "this expr"
+    };
+}
+
+var pThis = pfAny([lThis], fThis);
+
+
+function fNull(ast) {
+    return {
+        t: "null expr"
+    };
+}
+
+var pNull = pfAny([lNull], fNull);
+
+function fUndef(ast) {
+    return {
+        t: "undef expr"
+    };
+}
+
+var pUndef = pfAny([lUndef], fUndef);
+
 function fBoolLit(ast) {
     if (ast === "true") {
         return {
@@ -849,14 +886,14 @@ function fObjLit(ast) {
 function fObjLitEntry(ast) {
     return {
         t: "obj lit entry",
-        idx: ast[0],
+        idx: ast[0].idName,
         expr: ast[2]
     };
 }
 
 var pObjLit = pfBraces(pComma(
     pfSeq([
-        pAny([pStringLit, pId]),
+        pId,
         lColon,
         pExpr
     ], fObjLitEntry)
@@ -873,6 +910,9 @@ var pBinOps = [
 ];
 
 var pExpr1 = pAny([
+    pThis,
+    pNull,
+    pUndef,
     pBoolLit,
     pNumberLit,
     pStringLit,
@@ -963,19 +1003,28 @@ function generateExpr() {
 
 var pExprRef = generateExpr();
 
-var pSrc = pfSeq([pSkipSpace, pMany(pItem), pStr(String.fromCharCode(26))], fN1);
+var pSrc = pfSeq([
+        pSkipSpace,
+        pSeq([pStr("'use strict';"), pSkipSpace]),
+        pMany(pItem)
+    ], fN2);
+
+function pParse(parser, str) {
+    var endMarker = String.fromCharCode(26);
+    return pAParse(pfSeq([parser,pStr(endMarker)],fN0), str + endMarker, 0);
+}
 
 function pTests() {
     var sws = pSkipSpace;
-    parse(pMany(pAny([pStr('1'), sws])), '111');
-    parse(pMany(pAny([
+    pParse(pMany(pAny([pStr('1'), sws])), '111');
+    pParse(pMany(pAny([
         pSeq([pStr('1'), sws]),
         pSeq([pId, sws])
     ])), '1 1     1    a     a    a basd ');
-    parse(pComma(pAny([pStr('1'), pStr('2')])), '1,2,1,2,2,1,1,2,2');
-    parse(pFunction, 'function f(x) { var a = 4; if (a) { } else if { n = a; } else { a = a; } }');
+    pParse(pComma(pAny([pStr('1'), pStr('2')])), '1,2,1,2,2,1,1,2,2');
+    pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if { n = a; } else { a = a; } }');
     var tsrc = 'var pIdent = { p: pdentm };function pFloatIm(s, i) { if (isNumChar(s[i])) { return pFail(i, "expected float"); } var res = ""; while (isNumChar(s[i])) { res = res + s[i]; i = i + 1; } if (s[i] === "." && isNumChar(s[i+1])) { res = res + s[i]; i = i + 1; while (isNumChar(s[i])) { res = res + s[i]; i = i + 1; } } if (isLetterChar(s[i])) { return pFail(i, "number ends in letter"); } return pSucc(i, res);}var pFloat = { p: pFloatIm } ;';
-    parse(pSrc, tsrc);
+    return pParse(pSrc, tsrc);
 }
 
 // vim:sts=4:sw=4
