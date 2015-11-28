@@ -33,7 +33,7 @@
     }
     addToCtxB.onclick = function() {
         var p = pParse(pSrc,codeTT.value);
-        if (p.t === "error") { alert(JSON.stringify(p,null,2)); }
+        if (p.t === "Fail") { alert(JSON.stringify(p,null,2)); }
         iEvalSrc(ctx, p.res);
     }
 

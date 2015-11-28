@@ -33,8 +33,8 @@
 //              /* ctx: eventuell furture context */
 //          }
 //      }
-//      ImplFunction {
-//          t: "impl func val",
+//      BuildInFunction {
+//          t: "buildin func val",
 //          func: function(this, args) {}
 //      }
 //
@@ -259,24 +259,25 @@ function iEvalFuncCall(ctx, thisobj, func, params) {
     }
 }
 
-function iImplStrCharCodeAt(str, args) {
+function iBuildInStrCharCodeAt(str, args) {
     var r = str.val.charCodeAt(args[0].val);
     return {
         t: "num val",
         val: r
     };
 }
-function iImplArrayPop(array, args) {
+function iBuildInArrayPop(array, args) {
     return array.val.pop();
 }
-function iImplArrayPush(array, args) {
+function iBuildInArrayPush(array, args) {
     var r = array.val.push(args[0]);
     return {
         t: "num val",
         val: r
     };
 }
-function iImplObjHasOwnProperty(obj, args) {
+
+function iBuildInObjHasOwnProperty(obj, args) {
     var r = obj.val.hasOwnProperty(args[0].val);
     return {
         t: "bool val",
@@ -284,77 +285,77 @@ function iImplObjHasOwnProperty(obj, args) {
     };
 }
 
-function iEvalExpr2(ctx, expr2) {
+function iMakeBuildInFunc(func) {
+    return {
+        t: "buildin func val",
+        func: func
+    };
+}
+
+function iMakeBuildInProp(func) {
+    return {
+        t: "buildin property",
+        func: func
+    };
+}
+
+function iBuildInLength(obj) {
+    return {
+        t: "num val",
+        val: obj.val.length
+    };
+}
+
+var iExpr2BuildIns = {
+    "obj val": {
+        "hasOwnProperty": iMakeBuildInFunc(iBuildInObjHasOwnProperty)
+    },
+    "array val": {
+        "push": iMakeBuildInFunc(iBuildInArrayPush),
+        "pop" : iMakeBuildInFunc(iBuildInArrayPush),
+        "length": iMakeBuildInProp(iBuildInLength)
+    },
+    "str val": {
+        "length": iMakeBuildInProp(iBuildInLength),
+        "charCodeAt": iMakeBuildInFunc(iBuildInStrCharCodeAt)
+    },
+    "num val": { },
+    "bool val": { },
+    "func val": { },
+    "buildin func val": { },
+    "undef val": { },
+    "null val": { }
+};
+
+function iEvalExpr2Impl(ctx, expr2, until) {
     var thisval = iUndefVal;
     var cur = iEvalExpr(ctx, expr2.innermost);
     var i = 0;
-    while (i < expr2.rest.length) {
+    while (i < until) {
         var a = expr2.rest[i];
         if (a.t === "dotted") {
-            if (cur.t === "obj val") {
-                thisval = cur;
-                if (cur.val.hasOwnProperty(a.dotName)) {
-                    cur = cur.val[a.dotName];
-                } else if (a.dotName === "hasOwnProperty") {
-                    thisval = cur;
-                    cur = {
-                        t: "impl func val",
-                        func: iImplObjHasOwnProperty
-                    };
+            thisval = cur;
+            if (cur.t === "obj val" && cur.val.hasOwnProperty(a.dotName)) {
+                cur = cur.val[a.dotName];
+            } else if ((cur.t === "obj val" && a.dotName === "hasOwnProperty") // cannto use the other case here
+                    || iExpr2BuildIns[cur.t].hasOwnProperty(a.dotName)) {
+                var buildin = iExpr2BuildIns[cur.t][a.dotName];
+                if (buildin.t === "buildin property") {
+                    cur = buildin.func(cur);
                 } else {
-                    return iError("cannot access this porptery on object");
-                }
-            } else if (cur.t === "str val") {
-                if (a.dotName === "length") {
-                    thisval = iUndefVal;
-                    cur = {
-                        t: "num val",
-                        val: cur.val.length
-                    };
-                } else if (a.dotName === "charCodeAt") {
-                    thisval = cur;
-                    cur = {
-                        t: "impl func val",
-                        func: iImplStrCharCodeAt
-                    };
-                } else {
-                    return iError("only length and charCodeAt on string");
-                }
-            } else if (cur.t === "array val") {
-                if (a.dotName === "length") {
-                    thisval = iUndefVal;
-                    cur = {
-                        t: "num val",
-                        val: cur.val.length
-                    };
-                } else if (a.dotName === "pop") {
-                    thisval = cur;
-                    cur = {
-                        t: "impl func val",
-                        func: iImplArrayPop
-                    };
-                } else if (a.dotName === "push") {
-                    thisval = cur;
-                    cur = {
-                        t: "impl func val",
-                        func: iImplArrayPush
-                    };
-                } else {
-                    return iError("only length on array");
+                    cur = buildin;
                 }
             } else {
-                return iError("can only dot in object");
+                return iError("cannot dot into value");
             }
         } else if (a.t === "array index") {
-            thisval = iUndefVal;
+            thisval = cur;
             var ie = iEvalExpr(ctx, a.indexExpr);
-            if (ie.t === "str val" && cur.t === "obj val") {
+            if (cur.t === "obj val" && ie.t === "str val") {
                 cur = cur.val[ie.val];
-            } else if (ie.t === "num val" && ie.val >= 0
-                    && cur.t === "array val") {
+            } else if (ie.t === "num val" && ie.val >= 0 && cur.t === "array val") {
                 cur = cur.val[ie.val];
-            } else if (ie.t === "num val" && ie.val >= 0
-                    && cur.t === "str val") {
+            } else if (ie.t === "num val" && ie.val >= 0 && cur.t === "str val") {
                 cur = {
                     t: "str val",
                     val: cur.val[ie.val]
@@ -371,10 +372,8 @@ function iEvalExpr2(ctx, expr2) {
             }
             if (cur.t === "func val") {
                 cur = iEvalFuncCall(ctx, thisval, cur, params);
-                thisval = iUndefVal;
-            } else if (cur.t === "impl func val") {
+            } else if (cur.t === "buildin func val") {
                 cur = cur.func(thisval, params);
-                thisval = iUndefVal;
             } else {
                 return iError("cannot call non function");
             }
@@ -382,6 +381,37 @@ function iEvalExpr2(ctx, expr2) {
         i = i + 1;
     }
     return cur;
+}
+
+function iEvalExpr2(ctx, expr2) {
+    return iEvalExpr2Impl(ctx, expr2, expr2.rest.length);
+}
+
+function iEvalExpr2Set(ctx, expr2, value) {
+    if (expr2.rest.length < 1) { return iError("cannot assign to expression"); }
+    var last = expr2.rest.length;
+
+    var cur = iEvalExpr2Impl(ctx, expr2, last - 1);
+
+    var a = expr2.rest[last - 1];
+    if (a.t === "dotted") {
+        if (cur.t === "obj val") {
+            cur.val[a.dotName] = value;
+        }
+    } else if (a.t === "array index") {
+        thisval = iUndefVal;
+        var ie = iEvalExpr(ctx, a.indexExpr);
+        if (cur.t === "obj val" && ie.t === "str val") {
+            cur.val[a.dotName] = value;
+        } else if (ie.t === "num val" && ie.val >= 0
+                && cur.t === "array val") {
+            cur.val[ie.val] = value;
+        } else {
+            return iError("array index assignment error");
+        }
+    } else if (a.t === "func call") {
+        return iError("func call assignment error");
+    }
 }
 
 function iEvalExpr(ctx, expr) {
@@ -447,7 +477,11 @@ function iEvalStmt(ctx, stmt) {
         iEvalExpr(ctx, stmt.expr);
     } else if (stmt.t === "assign stmt") {
         // TODO disallow creating new var
-        iSetNameVal(ctx, stmt.variable, iEvalExpr(ctx, stmt.expr));
+        if (stmt.left.t === "id") {
+            iSetNameVal(ctx, stmt.left.idName, iEvalExpr(ctx, stmt.expr));
+        } else if (stmt.left.t === "expr2") {
+            iEvalExpr2Set(ctx, stmt.left, iEvalExpr(ctx, stmt.expr));
+        }
     } else if (stmt.t === "var decl stmt") {
         iSetNameVal(ctx, stmt.varId, iEvalExpr(ctx, stmt.expr));
     } else if (stmt.t === "if stmt") {
@@ -487,7 +521,7 @@ function iEvalStmt(ctx, stmt) {
     };
 }
 
-function iImplStrObjfromCharCode(obj, args) {
+function iBuildInStrObjfromCharCode(obj, args) {
     return {
         t: "str val",
         val: String.fromCharCode(args[0].val)
@@ -499,8 +533,8 @@ function iCreateCtx() {
         t: "obj val",
         val: {
             fromCharCode: {
-                t: "impl func val",
-                func: iImplStrObjfromCharCode
+                t: "buildin func val",
+                func: iBuildInStrObjfromCharCode
             }
         }
     };
@@ -543,7 +577,7 @@ function iEval(ctx, exprStr) {
     return iEvalExpr(ctx, e.res);
 }
 
-function assert(b) {
+function iAssert(b) {
     if (not(b)) {
         console.log("ASSERT FAILED");
     }
@@ -570,22 +604,25 @@ function iTests() {
     var ctx = iCreateCtx();
 
     var expr = pParse(pExpr, '1+2*4+7');
-    assert(iEvalExpr(ctx, expr.res).val === 16);
+    iAssert(iEvalExpr(ctx, expr.res).val === 16);
 
     var fn = " 'use strict'; var a = 0; function main() { a = 1; } main(); ";
     var expr = pParse(pSrc, fn);
     iEvalSrc(ctx, expr.res);
-    assert(ctx.globals.a.val === 1);
+    iAssert(ctx.globals.a.val === 1);
     iEval(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if { n = a; } else { a = a; } }')");
     iEval(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if (this) { n = a; } else { a = a; } }')");
 }
 
 function iInterpreatParserToParseParserTest() {
+
     var pc = codeTT.value;
     var e = pParse(pExpr, "pParse(pSrc, 'put suff here')");
     e = e.res;
     e.rest[0].funcParams[1].val = pc;
     var r = iEvalExpr(ctx, e);
+
+    return r;
 }
 
 

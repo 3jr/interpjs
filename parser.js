@@ -45,13 +45,7 @@ function isWhitespaceChar(str) {
 function pAParse(p, s, i) {
     var r = p.p(s, i);
     if (r.t === "Succ" && p.hasOwnProperty("f")) {
-        // TODO fix complex left side
-        //r.res = p.f(r.res);
-        return {
-            t: "Succ",
-            pos: r.pos,
-            res: p.f(r.res)
-        };
+        r.res = p.f(r.res);
     }
     return r;
 }
@@ -727,7 +721,7 @@ function fAssignExprStmt(ast) {
         }
         return {
             t: "assign stmt",
-            variable: ast[0].idName,
+            left: ast[0],
             expr: ast[1]
         };
     }
@@ -811,7 +805,7 @@ function fNumberLit(ast) {
 var pNumberLit = pfSeq([pFloat, pSkipSpace], fNumberLit);
 
 function fStringLit(ast) {
-    // var s = ast[0].slice(1,-1);
+    // This code does something like: var s = ast[0].slice(1,-1);
     var s = "";
     var i = 1;
     while (i < ast[0].length - 1) {
@@ -884,16 +878,22 @@ function fObjLit(ast) {
 }
 
 function fObjLitEntry(ast) {
+    var idx = null;
+    if (ast[0].t === "id") {
+        idx = ast[0].idName;
+    } else if (ast[0].t === "str lit") {
+        idx = ast[0].val;
+    }
     return {
         t: "obj lit entry",
-        idx: ast[0].idName,
+        idx: idx,
         expr: ast[2]
     };
 }
 
 var pObjLit = pfBraces(pComma(
     pfSeq([
-        pId,
+        pAny([pId,pStringLit]),
         lColon,
         pExpr
     ], fObjLitEntry)
