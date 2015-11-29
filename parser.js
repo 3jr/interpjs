@@ -10,7 +10,7 @@
 // i : position in stream (names pos in Succ and Ret)
 // res : result of parsing
 
-'use strict';
+//'use strict';
 
 function pParserlog(msg) {
     //console.log(msg);
@@ -1005,9 +1005,10 @@ var pExprRef = generateExpr();
 
 var pSrc = pfSeq([
         pSkipSpace,
-        pSeq([pStr("'use strict';"), pSkipSpace]),
+        //pSeq([pStr("'use strict';"), pSkipSpace]),
         pMany(pItem)
-    ], fN2);
+    //], fN2);
+    ], fN1);
 
 function pParse(parser, str) {
     var endMarker = String.fromCharCode(26);

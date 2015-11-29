@@ -42,7 +42,7 @@
 //      String.fromCharCode(number)
 //      console.log(string)
 
-'use strict';
+//'use strict';
 
 function iError(msg) {
     return {
@@ -80,8 +80,12 @@ function iCopyVal(val) {
     };
 }
 
+function iLocals(ctx) {
+    return ctx.localsStack[ctx.localsStack.length - 1];
+}
+
 function iSetNameVal(ctx, name, val) {
-    var locals = ctx.localsStack[ctx.localsStack.length - 1];
+    var locals = iLocals(ctx);
     if (locals.hasOwnProperty(name)) {
         locals[name] = iCopyVal(val);
     } else if (ctx.globals.hasOwnProperty(name)) {
@@ -91,13 +95,24 @@ function iSetNameVal(ctx, name, val) {
     }
 }
 
+function iArrayContains(arr, val) {
+    var i = 0;
+    while (i < arr.length) {
+        if (arr[i] === val) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
 function iEvalBinOp(ctx, expr) {
     var cur = iCopyVal(iEvalExpr(ctx, expr.operants[0]));
     var i = 1;
     while (i < expr.operants.length) {
         var op = expr.operators[i - 1];
         var rhs = expr.operants[i];
-        if (["*","/","%","+","-","<",">",">=","<="].indexOf(op) >= 0) {
+        if (iArrayContains(["*","/","%","+","-","<",">",">=","<="], op)) {
             rhs = iEvalExpr(ctx, rhs);
             if (cur.t === "str val" && cur.t === rhs.t) {
                 if (false) {
@@ -483,7 +498,9 @@ function iEvalStmt(ctx, stmt) {
             iEvalExpr2Set(ctx, stmt.left, iEvalExpr(ctx, stmt.expr));
         }
     } else if (stmt.t === "var decl stmt") {
-        iSetNameVal(ctx, stmt.varId, iEvalExpr(ctx, stmt.expr));
+        var locals = iLocals(ctx);
+        var val = iEvalExpr(ctx, stmt.expr);
+        locals[stmt.varId] = iCopyVal(val);
     } else if (stmt.t === "if stmt") {
         var cond = iEvalExpr(ctx, stmt.cond);
         if (cond.t === "bool val" && cond.val) {
@@ -565,6 +582,11 @@ function iEvalSrc(ctx, src) {
     }
 }
 
+function iEvalSrcStr(ctx, srcStr) {
+    var e = pParse(pSrc, srcStr);
+    iEvalSrc(ctx, e.res);
+}
+
 function iEntryPoint(ctx, funcName, args) {
     if (not(ctx.globals.hasOwnProperty(funcName))) {
         return iError("couldn't find function with name '" + funcName + "'");
@@ -572,7 +594,7 @@ function iEntryPoint(ctx, funcName, args) {
     return iEvalFuncCall(ctx, iUndefVal, ctx.globals[funcName], args);
 }
 
-function iEval(ctx, exprStr) {
+function iEvalExprStr(ctx, exprStr) {
     var e = pParse(pExpr,exprStr);
     return iEvalExpr(ctx, e.res);
 }
@@ -598,7 +620,6 @@ function iStrip(o) {
     }
     return o.val;
 }
-*/
 
 function iTests() {
     var ctx = iCreateCtx();
@@ -610,8 +631,8 @@ function iTests() {
     var expr = pParse(pSrc, fn);
     iEvalSrc(ctx, expr.res);
     iAssert(ctx.globals.a.val === 1);
-    iEval(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if { n = a; } else { a = a; } }')");
-    iEval(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if (this) { n = a; } else { a = a; } }')");
+    iEvalExprStr(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if { n = a; } else { a = a; } }')");
+    iEvalExprStr(ctx, "pParse(pFunction, 'function f(x) { var a = 4; if (a) { } else if (this) { n = a; } else { a = a; } }')");
 }
 
 function iInterpreatParserToParseParserTest() {
@@ -625,5 +646,26 @@ function iInterpreatParserToParseParserTest() {
     return r;
 }
 
+function test() {
+
+    var test_code =
+        "var ctx = iCreateCtx();" +
+        "var r = '';" +
+        "function test(code) {" +
+        "  iEvalSrcStr(ctx, code);" +
+        "  r = iEvalExprStr(ctx, '1+1');" +
+        "  return r;" +
+        "}";
+
+    iEvalSrcStr(ctx, test_code);
+    var e = pParse(pExpr, "test('put suff here')").res;
+    e.rest[0].funcParams[0].val = codeTT.value;
+    var r = iEvalExpr(ctx, e);
+
+    iEvalExprStr(ctx, "iEvalExprStr(ctx, '1+1')")
+
+    return r;
+}
+*/
 
 // vim:sts=4:sw=4
