@@ -16,6 +16,12 @@ function pParserlog(msg) {
     //console.log(msg);
 }
 
+// TODO combine utils
+function pHasOwnProperty(obj, name) {
+    return Object.prototype.hasOwnProperty.call(obj, name);
+}
+
+
 function not(b) {
     if (b === true) {
         return false;
@@ -44,7 +50,7 @@ function isWhitespaceChar(str) {
 
 function pAParse(p, s, i) {
     var r = p.p(s, i);
-    if (r.t === "Succ" && p.hasOwnProperty("f")) {
+    if (r.t === "Succ" && pHasOwnProperty(p, "f")) {
         r.res = p.f(r.res);
     }
     return r;
@@ -1005,6 +1011,7 @@ var pExprRef = generateExpr();
 
 var pSrc = pfSeq([
         pSkipSpace,
+        // TODO reenable 'use strict'; 
         //pSeq([pStr("'use strict';"), pSkipSpace]),
         pMany(pItem)
     //], fN2);

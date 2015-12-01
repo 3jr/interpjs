@@ -7,7 +7,6 @@
 //      Object {
 //          t: "obj val",
 //          val: dictonary with the propertie values
-//          // Members: hasOwnProperty
 //      }
 //      Array {
 //          t: "array val",
@@ -39,12 +38,12 @@
 //      }
 //
 // TODO: implement javascript library:
-//      String.fromCharCode(number)
 //      console.log(string)
 
 //'use strict';
 
 function iError(msg) {
+    // TODO implement some kind of exit (maybe with throw)
     return {
         t: "error",
         msg: msg
@@ -52,21 +51,27 @@ function iError(msg) {
 }
 
 var iUndefVal = {
-            t: "undef val"
+            t: "undef val",
+            val: null
         };
 
 var iNullVal = {
-            t: "null val"
+            t: "null val",
+            val: null
         };
+
+function iHasOwnProperty(obj, name) {
+    return Object.prototype.hasOwnProperty.call(obj, name);
+}
 
 function iGetNameVal(ctx, name) {
     if (ctx.localsStack.length > 0) {
         var locals = ctx.localsStack[ctx.localsStack.length - 1];
-        if (locals.hasOwnProperty(name)) {
+        if (iHasOwnProperty(locals, name)) {
             return locals[name];
         }
     }
-    if (ctx.globals.hasOwnProperty(name)) {
+    if (iHasOwnProperty(ctx.globals, name)) {
         return ctx.globals[name];
     } else {
         return iUndefVal;
@@ -86,9 +91,9 @@ function iLocals(ctx) {
 
 function iSetNameVal(ctx, name, val) {
     var locals = iLocals(ctx);
-    if (locals.hasOwnProperty(name)) {
+    if (iHasOwnProperty(locals, name)) {
         locals[name] = iCopyVal(val);
-    } else if (ctx.globals.hasOwnProperty(name)) {
+    } else if (iHasOwnProperty(ctx.globals, name)) {
         ctx.globals[name] = iCopyVal(val);
     } else {
         locals[name] = iCopyVal(val);
@@ -241,6 +246,9 @@ function iEvalFuncCall(ctx, thisobj, func, params) {
     if (func.t !== "func val") {
         return iError("can only call a function value");
     }
+    if (func.val.ast.funcName === "iError") {
+        var i = 0;
+    }
     var oldThis = ctx.thisval;
     ctx.thisval = thisobj;
     var locals = {};
@@ -269,8 +277,6 @@ function iEvalFuncCall(ctx, thisobj, func, params) {
         } else {
             return iUndefVal;
         }
-    } else if (func.val.t === "buildin func") {
-        return func.val.func(ctx, thiobj, func, params);
     }
 }
 
@@ -288,14 +294,6 @@ function iBuildInArrayPush(array, args) {
     var r = array.val.push(args[0]);
     return {
         t: "num val",
-        val: r
-    };
-}
-
-function iBuildInObjHasOwnProperty(obj, args) {
-    var r = obj.val.hasOwnProperty(args[0].val);
-    return {
-        t: "bool val",
         val: r
     };
 }
@@ -323,11 +321,10 @@ function iBuildInLength(obj) {
 
 var iExpr2BuildIns = {
     "obj val": {
-        "hasOwnProperty": iMakeBuildInFunc(iBuildInObjHasOwnProperty)
     },
     "array val": {
         "push": iMakeBuildInFunc(iBuildInArrayPush),
-        "pop" : iMakeBuildInFunc(iBuildInArrayPush),
+        "pop" : iMakeBuildInFunc(iBuildInArrayPop),
         "length": iMakeBuildInProp(iBuildInLength)
     },
     "str val": {
@@ -350,10 +347,9 @@ function iEvalExpr2Impl(ctx, expr2, until) {
         var a = expr2.rest[i];
         if (a.t === "dotted") {
             thisval = cur;
-            if (cur.t === "obj val" && cur.val.hasOwnProperty(a.dotName)) {
+            if (cur.t === "obj val" && iHasOwnProperty(cur.val, a.dotName)) {
                 cur = cur.val[a.dotName];
-            } else if ((cur.t === "obj val" && a.dotName === "hasOwnProperty") // cannto use the other case here
-                    || iExpr2BuildIns[cur.t].hasOwnProperty(a.dotName)) {
+            } else if (iHasOwnProperty(iExpr2BuildIns[cur.t], a.dotName)) {
                 var buildin = iExpr2BuildIns[cur.t][a.dotName];
                 if (buildin.t === "buildin property") {
                     cur = buildin.func(cur);
@@ -380,10 +376,10 @@ function iEvalExpr2Impl(ctx, expr2, until) {
             }
         } else if (a.t === "func call") {
             var params = [];
-            var i = 0;
-            while (i < a.funcParams.length) {
-                params.push(iEvalExpr(ctx, a.funcParams[i]));
-                i = i + 1;
+            var j = 0;
+            while (j < a.funcParams.length) {
+                params.push(iEvalExpr(ctx, a.funcParams[j]));
+                j = j + 1;
             }
             if (cur.t === "func val") {
                 cur = iEvalFuncCall(ctx, thisval, cur, params);
@@ -417,7 +413,7 @@ function iEvalExpr2Set(ctx, expr2, value) {
         thisval = iUndefVal;
         var ie = iEvalExpr(ctx, a.indexExpr);
         if (cur.t === "obj val" && ie.t === "str val") {
-            cur.val[a.dotName] = value;
+            cur.val[ie.val] = value;
         } else if (ie.t === "num val" && ie.val >= 0
                 && cur.t === "array val") {
             cur.val[ie.val] = value;
@@ -538,10 +534,20 @@ function iEvalStmt(ctx, stmt) {
     };
 }
 
-function iBuildInStrObjfromCharCode(obj, args) {
+function iBuildInStrObjfromCharCode(thisobj, args) {
     return {
         t: "str val",
         val: String.fromCharCode(args[0].val)
+    };
+}
+
+function iBuildInObObjHasOwnProperty(thisobj, args) {
+    if (args[0].t !== "obj val" || args[1].t !== "str val") {
+        return iUndefVal;
+    }
+    return {
+        t: "bool val",
+        val: iHasOwnProperty(args[0].val, args[1].val)
     };
 }
 
@@ -555,9 +561,28 @@ function iCreateCtx() {
             }
         }
     };
+    var ObjObj = {
+        t: "obj val",
+        val: {
+            prototype: {
+                t: "obj val",
+                val: {
+                    hasOwnProperty: {
+                        t: "obj val",
+                        val: {
+                            call: {
+                                t: "buildin func val",
+                                func: iBuildInObObjHasOwnProperty
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
     var ctx = {
         localsStack: [],
-        globals: { String: StrObj },
+        globals: { String: StrObj, Object: ObjObj },
         thisval: iUndefVal
     };
     return ctx;
@@ -588,7 +613,7 @@ function iEvalSrcStr(ctx, srcStr) {
 }
 
 function iEntryPoint(ctx, funcName, args) {
-    if (not(ctx.globals.hasOwnProperty(funcName))) {
+    if (not(iHasOwnProperty(ctx.globals, funcName))) {
         return iError("couldn't find function with name '" + funcName + "'");
     }
     return iEvalFuncCall(ctx, iUndefVal, ctx.globals[funcName], args);
@@ -656,7 +681,6 @@ function test() {
         "  r = iEvalExprStr(ctx, '1+1');" +
         "  return r;" +
         "}";
-
     iEvalSrcStr(ctx, test_code);
     var e = pParse(pExpr, "test('put suff here')").res;
     e.rest[0].funcParams[0].val = codeTT.value;
@@ -666,6 +690,53 @@ function test() {
 
     return r;
 }
+
+function test1() {
+
+    var test_code =
+        "var ctx = iCreateCtx();" +
+        "var r = '';" +
+        "function test(code) {" +
+        "  iEvalSrcStr(ctx, code);" +
+        "  r = iEvalExprStr(ctx, '{o:2}.o = 3');" +
+        "  return r;" +
+        "}";
+    iEvalSrcStr(ctx, test_code);
+    var e = pParse(pExpr, "test('put suff here')").res;
+    e.rest[0].funcParams[0].val = codeTT.value;
+    var r = iEvalExpr(ctx, e);
+
+    return r;
+}
+
+function test2() {
+
+    var test_code =
+        "var ctx = iCreateCtx();" +
+        "var r = '';" +
+        "function test(code) {" +
+        "  iEvalSrcStr(ctx, code);" +
+        "  var e = pParse(pExpr, 'pParse(pSrc, \"put suff here\")').res;" +
+        "  e.rest[0].funcParams[1].val = code;" +
+        "  r = iEvalExpr(ctx, e);" +
+        "  return r;" +
+        "}";
+    iEvalSrcStr(ctx, test_code);
+    var e = pParse(pExpr, "test('put suff here')").res;
+    e.rest[0].funcParams[0].val = codeTT.value;
+    var r = iEvalExpr(ctx, e);
+
+    return r;
+}
+
+
+var ctx = iCreateCtx();
+
+iEvalSrcStr(ctx, codeTT.value);
+var e = pParse(pExpr, 'pParse(pSrc, "asdf")').res;
+e.rest[0].funcParams[0].val = codeTT.value;
+var r = iEvalExpr(ctx, e);
+
 */
 
 // vim:sts=4:sw=4
